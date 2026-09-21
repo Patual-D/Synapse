@@ -124,7 +124,7 @@ export default function Maintenance() {
                     <td>{log.asset?.nombre || `Activo #${log.asset_id}`}</td>
                     <td style={{ maxWidth: 220 }}>{log.descripcion}</td>
                     <td>
-                      {new Date(log.fecha_reporte).toLocaleDateString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}
+                      {new Date(log.fecha_reporte).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}
                     </td>
                     <td>
                       <span className={`badge ${estadoBadge(log.estado_reparacion)}`}>{log.estado_reparacion}</span>
