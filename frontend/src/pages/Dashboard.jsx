@@ -34,8 +34,24 @@ export default function Dashboard() {
   }, []);
 
   const disponibles = assets.filter((a) => a.estado === 'disponible').length;
-  const enUso = assets.filter((a) => a.estado === 'en_uso').length;
+  const enUso = assets.filter((a) => a.estado === 'en_uso' || a.en_uso_ahora).length;
   const mantenimiento = assets.filter((a) => a.estado === 'mantenimiento').length;
+
+  const puedeCancelar = (r) =>
+    (r.estado_aprobacion === 'pendiente' || r.estado_aprobacion === 'aprobada') &&
+    new Date(r.fecha_inicio).getTime() > Date.now();
+
+  const cancelReservation = async (id) => {
+    if (!window.confirm('¿Cancelar esta reservación?')) return;
+    try {
+      await api.post(`/reservations/${id}/cancel`);
+      setError('');
+      const res = await api.get('/reservations', { params: { mine: 1 } });
+      setReservations(res.data.data);
+    } catch (err) {
+      setError(err.response?.data?.message || 'No se pudo cancelar la reserva.');
+    }
+  };
 
   return (
     <div>
@@ -100,6 +116,7 @@ export default function Dashboard() {
                   <th>Recurso</th>
                   <th>Inicio</th>
                   <th>Estado</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
@@ -121,6 +138,13 @@ export default function Dashboard() {
                       >
                         {r.estado_aprobacion}
                       </span>
+                    </td>
+                    <td>
+                      {puedeCancelar(r) && (
+                        <button className="btn btn-danger btn-sm" onClick={() => cancelReservation(r.id)}>
+                          Cancelar
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}

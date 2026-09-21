@@ -9,7 +9,8 @@
     "test": "cross-env NODE_ENV=test jest --runInBand",
     "test:coverage": "cross-env NODE_ENV=test jest --coverage --runInBand",
     "db:init": "node scripts/db-init.js",
-    "db:seed": "node scripts/seed.js"
+    "db:seed": "node scripts/seed.js",
+    "db:backfill": "node scripts/backfill-maintenance.js"
   },
   "keywords": ["synapse", "recursos", "inventario", "reservas", "microservicios"],
   "license": "MIT",

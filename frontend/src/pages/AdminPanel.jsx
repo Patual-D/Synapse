@@ -25,6 +25,12 @@ const EMPTY_FORM = { nombre: '', tipo: '', estado: 'disponible', ubicacion: '' }
 const estadoBadge = (estado) =>
   estado === 'disponible' ? 'badge-success' : estado === 'en_uso' ? 'badge-info' : 'badge-warning';
 
+const resBadge = (estado) =>
+  estado === 'aprobada' ? 'badge-success'
+    : estado === 'pendiente' ? 'badge-warning'
+      : estado === 'rechazada' ? 'badge-danger'
+        : 'badge-neutral';
+
 export default function AdminPanel() {
   const [assets, setAssets] = useState([]);
   const [reservations, setReservations] = useState([]);
@@ -38,7 +44,7 @@ export default function AdminPanel() {
     try {
       const [assetsRes, resRes, logsRes] = await Promise.all([
         api.get('/assets', { params: { limit: 100 } }),
-        api.get('/reservations'),
+        api.get('/reservations', { params: { todos: 1 } }),
         api.get('/maintenance')
       ]);
       setAssets(assetsRes.data.data);
@@ -58,7 +64,7 @@ export default function AdminPanel() {
 
   const byEstado = [
     { name: 'Disponibles', value: assets.filter((a) => a.estado === 'disponible').length },
-    { name: 'En uso', value: assets.filter((a) => a.estado === 'en_uso').length },
+    { name: 'En uso', value: assets.filter((a) => a.estado === 'en_uso' || a.en_uso_ahora).length },
     { name: 'Mantenimiento', value: assets.filter((a) => a.estado === 'mantenimiento').length }
   ].filter((d) => d.value > 0);
 
@@ -308,43 +314,56 @@ export default function AdminPanel() {
       </div>
 
       <div className="card">
-        <h3 className="card-title">Reservas pendientes de aprobación</h3>
+        <h3 className="card-title">Gestión de reservas</h3>
         {loading ? (
           <p className="text-muted">Cargando…</p>
-        ) : reservations.filter((r) => r.estado_aprobacion === 'pendiente').length === 0 ? (
-          <p className="text-muted">No hay reservas pendientes.</p>
+        ) : reservations.length === 0 ? (
+          <p className="text-muted">No hay reservas registradas.</p>
         ) : (
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Recurso</th>
-                <th>Inicio</th>
-                <th>Solicitante</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {reservations
-                .filter((r) => r.estado_aprobacion === 'pendiente')
-                .map((r) => (
+          <div style={{ overflowX: 'auto' }}>
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Recurso</th>
+                  <th>Solicitante</th>
+                  <th>Inicio</th>
+                  <th>Fin</th>
+                  <th>Estado</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {reservations.map((r) => (
                   <tr key={r.id}>
                     <td>{r.asset?.nombre || `Activo #${r.asset_id}`}</td>
+                    <td>{r.user?.nombre || `Usuario #${r.user_id}`}</td>
                     <td>{new Date(r.fecha_inicio).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}</td>
-                    <td>{r.user_id}</td>
+                    <td>{new Date(r.fecha_fin).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}</td>
+                    <td><span className={`badge ${resBadge(r.estado_aprobacion)}`}>{r.estado_aprobacion}</span></td>
                     <td>
                       <div className="flex" style={{ gap: 6 }}>
-                        <button className="btn btn-primary btn-sm" onClick={() => updateState(r.id, 'aprobada')}>
-                          Aprobar
-                        </button>
-                        <button className="btn btn-danger btn-sm" onClick={() => updateState(r.id, 'rechazada')}>
-                          Rechazar
-                        </button>
+                        {r.estado_aprobacion === 'pendiente' && (
+                          <button className="btn btn-primary btn-sm" onClick={() => updateState(r.id, 'aprobada')}>
+                            Aprobar
+                          </button>
+                        )}
+                        {r.estado_aprobacion === 'pendiente' && (
+                          <button className="btn btn-danger btn-sm" onClick={() => updateState(r.id, 'rechazada')}>
+                            Rechazar
+                          </button>
+                        )}
+                        {(r.estado_aprobacion === 'pendiente' || r.estado_aprobacion === 'aprobada') && (
+                          <button className="btn btn-danger btn-sm" onClick={() => updateState(r.id, 'cancelada')}>
+                            Cancelar
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
                 ))}
-            </tbody>
-          </table>
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>

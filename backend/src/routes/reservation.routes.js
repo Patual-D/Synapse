@@ -7,6 +7,7 @@ const router = Router();
 
 router.post('/', verifyToken, reservationController.create);
 router.get('/', verifyToken, reservationController.list);
+router.post('/:id/cancel', verifyToken, reservationController.cancel);
 router.patch('/:id', verifyToken, isAdmin, reservationController.updateState);
 
 module.exports = router;
