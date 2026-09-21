@@ -1,0 +1,27 @@
+# Dependencias
+node_modules/
+
+# Builds
+dist/
+build/
+
+# Cobertura de pruebas
+coverage/
+
+# Variables de entorno y secretos (NUNCA se suben al repo)
+.env
+.env.local
+*.env
+
+# Registros y temporales
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Docker
+*.tar.gz

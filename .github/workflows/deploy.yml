@@ -1,0 +1,108 @@
+# ============================================================
+# SYNAPSE - CI/CD
+# FASE PREPARADA. El paso de despliegue en la nube (AWS EC2)
+# queda comentado; se activará cuando se habilite la etapa cloud.
+# ============================================================
+name: CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Pruebas unitarias (Jest + Cobertura >= 80%)
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+          MYSQL_DATABASE: synapse_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      NODE_ENV: test
+      JWT_SECRET: ci-secret-no-utilizar-en-produccion
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASS: ""
+      DB_NAME: synapse
+      DB_NAME_TEST: synapse_test
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Instalar dependencias del backend
+        working-directory: backend
+        run: npm ci
+
+      - name: Ejecutar pruebas con cobertura
+        working-directory: backend
+        run: npm run test:coverage
+
+      - name: Publicar reporte de cobertura
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: backend/coverage
+
+  docker-build:
+    name: Construcción de imágenes Docker (Staging)
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v4
+
+      - name: Configurar Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Construir imagen del backend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          tags: synapse/backend:staging
+          load: true
+
+      - name: Construir imagen del frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          tags: synapse/frontend:staging
+          load: true
+
+      # ============================================================
+      # DESPLIEGUE EN STAGING (descomentar cuando exista cuenta AWS)
+      # ============================================================
+      # - name: Configurar credenciales AWS
+      #   uses: aws-actions/configure-aws-credentials@v4
+      #   with:
+      #     aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      #     aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      #     aws-region: ${{ secrets.AWS_REGION }}
+      #
+      # - name: Desplegar en EC2 (staging)
+      #   run: |
+      #     docker save synapse/backend:staging synapse/frontend:staging | gzip > images.tar.gz
+      #     # SCP del bundle y docker compose up en el EC2 de staging
+      #   env:
+      #     AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      #     AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
