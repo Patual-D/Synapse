@@ -2,6 +2,7 @@ const { Op } = require('sequelize');
 const { Reservation, Asset } = require('../models');
 
 const APPROVED_STATES = ['pendiente', 'aprobada'];
+const CALENDAR_STATES = ['pendiente', 'aprobada'];
 
 exports.create = async (req, res, next) => {
   try {
@@ -57,8 +58,16 @@ exports.create = async (req, res, next) => {
 exports.list = async (req, res, next) => {
   try {
     const where = {};
+
+    if (req.query.mine) {
+      where.user_id = req.user.id;
+    } else if (req.query.estado) {
+      where.estado_aprobacion = req.query.estado;
+    } else {
+      where.estado_aprobacion = { [Op.in]: CALENDAR_STATES };
+    }
+
     if (req.query.asset_id) where.asset_id = req.query.asset_id;
-    if (req.query.estado) where.estado_aprobacion = req.query.estado;
 
     const reservations = await Reservation.findAll({
       where,

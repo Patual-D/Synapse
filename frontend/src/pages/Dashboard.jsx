@@ -9,18 +9,21 @@ export default function Dashboard() {
   const [reservations, setReservations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [pendientes, setPendientes] = useState(0);
 
   useEffect(() => {
     let active = true;
     (async () => {
       try {
-        const [assetsRes, resRes] = await Promise.all([
+        const [assetsRes, resRes, pendingRes] = await Promise.all([
           api.get('/assets', { params: { limit: 100 } }),
-          api.get('/reservations')
+          api.get('/reservations', { params: { mine: 1 } }),
+          api.get('/reservations', { params: { estado: 'pendiente' } })
         ]);
         if (!active) return;
         setAssets(assetsRes.data.data);
         setReservations(resRes.data.data);
+        setPendientes(pendingRes.data.data.length);
       } catch (err) {
         if (active) setError(err.response?.data?.message || 'No se pudieron cargar los datos.');
       } finally {
@@ -33,7 +36,6 @@ export default function Dashboard() {
   const disponibles = assets.filter((a) => a.estado === 'disponible').length;
   const enUso = assets.filter((a) => a.estado === 'en_uso').length;
   const mantenimiento = assets.filter((a) => a.estado === 'mantenimiento').length;
-  const pendientes = reservations.filter((r) => r.estado_aprobacion === 'pendiente').length;
 
   return (
     <div>
@@ -84,12 +86,13 @@ export default function Dashboard() {
 
         <div className="card">
           <div className="card-header">
-            <h3 className="card-title">Reservas</h3>
+            <h3 className="card-title">Mis reservas</h3>
+            <p className="card-subtitle">Tus solicitudes y su estado</p>
           </div>
           {loading ? (
             <p className="text-muted">Cargando…</p>
           ) : reservations.length === 0 ? (
-            <p className="text-muted">Aún no hay reservas registradas.</p>
+            <p className="text-muted">Aún no has realizado reservas.</p>
           ) : (
             <table className="table">
               <thead>
@@ -105,7 +108,17 @@ export default function Dashboard() {
                     <td>{r.asset?.nombre || `Activo #${r.asset_id}`}</td>
                     <td>{new Date(r.fecha_inicio).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}</td>
                     <td>
-                      <span className={`badge badge-${r.estado_aprobacion === 'aprobada' ? 'success' : r.estado_aprobacion === 'pendiente' ? 'warning' : 'neutral'}`}>
+                      <span
+                        className={`badge ${
+                          r.estado_aprobacion === 'aprobada'
+                            ? 'badge-success'
+                            : r.estado_aprobacion === 'pendiente'
+                              ? 'badge-warning'
+                              : r.estado_aprobacion === 'rechazada'
+                                ? 'badge-danger'
+                                : 'badge-neutral'
+                        }`}
+                      >
                         {r.estado_aprobacion}
                       </span>
                     </td>

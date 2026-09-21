@@ -47,3 +47,50 @@ exports.create = async (req, res, next) => {
     next(err);
   }
 };
+
+exports.update = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { nombre, tipo, estado, ubicacion, responsable_id } = req.body || {};
+
+    const asset = await Asset.findByPk(id);
+    if (!asset) {
+      return res.status(404).json({ message: 'Activo no encontrado.' });
+    }
+
+    const validStates = ['disponible', 'en_uso', 'mantenimiento'];
+    if (estado !== undefined && !validStates.includes(estado)) {
+      return res.status(400).json({ message: 'Estado inválido.' });
+    }
+
+    const updates = {};
+    if (nombre !== undefined) updates.nombre = nombre;
+    if (tipo !== undefined) updates.tipo = tipo;
+    if (estado !== undefined) updates.estado = estado;
+    if (ubicacion !== undefined) updates.ubicacion = ubicacion;
+    if (responsable_id !== undefined) updates.responsable_id = responsable_id || null;
+
+    await asset.update(updates);
+
+    return res.json({ message: 'Activo actualizado correctamente.', asset });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.remove = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const asset = await Asset.findByPk(id);
+    if (!asset) {
+      return res.status(404).json({ message: 'Activo no encontrado.' });
+    }
+
+    await asset.destroy();
+
+    return res.status(200).json({ message: `Activo "${asset.nombre}" eliminado correctamente.` });
+  } catch (err) {
+    next(err);
+  }
+};
