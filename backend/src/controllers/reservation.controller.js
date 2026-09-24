@@ -1,7 +1,8 @@
 const { Op } = require('sequelize');
-const { Reservation, Asset } = require('../models');
+const { Reservation, Asset, User } = require('../models');
 
 const APPROVED_STATES = ['pendiente', 'aprobada'];
+const CALENDAR_STATES = ['pendiente', 'aprobada'];
 
 exports.create = async (req, res, next) => {
   try {
@@ -54,18 +55,49 @@ exports.create = async (req, res, next) => {
   }
 };
 
+async function marcarRealizadas() {
+  await Reservation.update(
+    { estado_aprobacion: 'realizada' },
+    {
+      where: {
+        estado_aprobacion: 'aprobada',
+        fecha_fin: { [Op.lt]: new Date() }
+      }
+    }
+  );
+}
+
 exports.list = async (req, res, next) => {
   try {
+    await marcarRealizadas();
+
     const where = {};
+    const verHistorial = req.query.todos === '1' || !!req.query.mine;
+
+    if (req.query.todos === '1') {
+      // Historial completo (uso interno del admin): incluye reservas pasadas.
+    } else if (req.query.mine) {
+      where.user_id = req.user.id;
+    } else if (req.query.estado) {
+      where.estado_aprobacion = req.query.estado;
+    } else {
+      where.estado_aprobacion = { [Op.in]: CALENDAR_STATES };
+    }
+
     if (req.query.asset_id) where.asset_id = req.query.asset_id;
-    if (req.query.estado) where.estado_aprobacion = req.query.estado;
+
+    if (!verHistorial) {
+      // Solo "próximas" reservas: descarta las que ya terminaron.
+      where.fecha_fin = { [Op.gte]: new Date() };
+    }
 
     const reservations = await Reservation.findAll({
       where,
       include: [
-        { model: Asset, as: 'asset', attributes: ['id', 'nombre', 'tipo'] }
+        { model: Asset, as: 'asset', attributes: ['id', 'nombre', 'tipo'] },
+        { model: User, as: 'user', attributes: ['id', 'nombre'] }
       ],
-      order: [['fecha_inicio', 'ASC']]
+      order: verHistorial ? [['fecha_inicio', 'DESC']] : [['fecha_inicio', 'ASC']]
     });
 
     return res.json({ data: reservations });
@@ -93,6 +125,37 @@ exports.updateState = async (req, res, next) => {
     await reservation.save();
 
     return res.json({ message: 'Estado de la reserva actualizado.', reservation });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.cancel = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const reservation = await Reservation.findByPk(id);
+    if (!reservation) {
+      return res.status(404).json({ message: 'Reserva no encontrada.' });
+    }
+
+    const isAdmin = req.user.role === 'admin';
+    if (!isAdmin && reservation.user_id !== req.user.id) {
+      return res.status(403).json({ message: 'No tienes permiso para cancelar esta reserva.' });
+    }
+
+    if (!['pendiente', 'aprobada'].includes(reservation.estado_aprobacion)) {
+      return res.status(409).json({ message: 'Solo se pueden cancelar reservas pendientes o aprobadas.' });
+    }
+
+    if (new Date(reservation.fecha_inicio).getTime() <= Date.now()) {
+      return res.status(409).json({ message: 'No se puede cancelar una reserva que ya inició.' });
+    }
+
+    reservation.estado_aprobacion = 'cancelada';
+    await reservation.save();
+
+    return res.json({ message: 'Reserva cancelada correctamente.', reservation });
   } catch (err) {
     next(err);
   }

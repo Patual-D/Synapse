@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/client';
+import { usePagination, Pagination } from '../components/Pagination';
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -9,18 +10,21 @@ export default function Dashboard() {
   const [reservations, setReservations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [pendientes, setPendientes] = useState(0);
 
   useEffect(() => {
     let active = true;
     (async () => {
       try {
-        const [assetsRes, resRes] = await Promise.all([
+        const [assetsRes, resRes, pendingRes] = await Promise.all([
           api.get('/assets', { params: { limit: 100 } }),
-          api.get('/reservations')
+          api.get('/reservations', { params: { mine: 1 } }),
+          api.get('/reservations', { params: { estado: 'pendiente' } })
         ]);
         if (!active) return;
         setAssets(assetsRes.data.data);
         setReservations(resRes.data.data);
+        setPendientes(pendingRes.data.data.length);
       } catch (err) {
         if (active) setError(err.response?.data?.message || 'No se pudieron cargar los datos.');
       } finally {
@@ -31,9 +35,27 @@ export default function Dashboard() {
   }, []);
 
   const disponibles = assets.filter((a) => a.estado === 'disponible').length;
-  const enUso = assets.filter((a) => a.estado === 'en_uso').length;
+  const enUso = assets.filter((a) => a.estado === 'en_uso' || a.en_uso_ahora).length;
   const mantenimiento = assets.filter((a) => a.estado === 'mantenimiento').length;
-  const pendientes = reservations.filter((r) => r.estado_aprobacion === 'pendiente').length;
+
+  const misReservas = [...reservations].sort((a, b) => new Date(b.fecha_inicio) - new Date(a.fecha_inicio));
+  const resPager = usePagination(misReservas, 10);
+
+  const puedeCancelar = (r) =>
+    (r.estado_aprobacion === 'pendiente' || r.estado_aprobacion === 'aprobada') &&
+    new Date(r.fecha_inicio).getTime() > Date.now();
+
+  const cancelReservation = async (id) => {
+    if (!window.confirm('¿Cancelar esta reservación?')) return;
+    try {
+      await api.post(`/reservations/${id}/cancel`);
+      setError('');
+      const res = await api.get('/reservations', { params: { mine: 1 } });
+      setReservations(res.data.data);
+    } catch (err) {
+      setError(err.response?.data?.message || 'No se pudo cancelar la reserva.');
+    }
+  };
 
   return (
     <div>
@@ -84,35 +106,59 @@ export default function Dashboard() {
 
         <div className="card">
           <div className="card-header">
-            <h3 className="card-title">Reservas</h3>
+            <h3 className="card-title">Mis reservas</h3>
+            <p className="card-subtitle">Tus solicitudes y su estado</p>
           </div>
           {loading ? (
             <p className="text-muted">Cargando…</p>
           ) : reservations.length === 0 ? (
-            <p className="text-muted">Aún no hay reservas registradas.</p>
+            <p className="text-muted">Aún no has realizado reservas.</p>
           ) : (
-            <table className="table">
+            <>
+              <table className="table">
               <thead>
                 <tr>
                   <th>Recurso</th>
                   <th>Inicio</th>
                   <th>Estado</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
-                {reservations.slice(0, 5).map((r) => (
+                {resPager.slice.map((r) => (
                   <tr key={r.id}>
                     <td>{r.asset?.nombre || `Activo #${r.asset_id}`}</td>
                     <td>{new Date(r.fecha_inicio).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}</td>
                     <td>
-                      <span className={`badge badge-${r.estado_aprobacion === 'aprobada' ? 'success' : r.estado_aprobacion === 'pendiente' ? 'warning' : 'neutral'}`}>
+                      <span
+                        className={`badge ${
+                          r.estado_aprobacion === 'aprobada'
+                            ? 'badge-success'
+                            : r.estado_aprobacion === 'pendiente'
+                              ? 'badge-warning'
+                              : r.estado_aprobacion === 'rechazada'
+                                ? 'badge-danger'
+                                : r.estado_aprobacion === 'realizada'
+                                  ? 'badge-neutral'
+                                  : 'badge-neutral'
+                        }`}
+                      >
                         {r.estado_aprobacion}
                       </span>
+                    </td>
+                    <td>
+                      {puedeCancelar(r) && (
+                        <button className="btn btn-danger btn-sm" onClick={() => cancelReservation(r.id)}>
+                          Cancelar
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            <Pagination page={resPager.page} totalPages={resPager.totalPages} onChange={resPager.setPage} />
+            </>
           )}
         </div>
       </div>
