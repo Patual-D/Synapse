@@ -144,7 +144,7 @@ export default function Catalog() {
                 <strong>Ubicación:</strong> {asset.ubicacion || '—'}
               </p>
 
-              {asset.estado === 'disponible' ? (
+              {asset.estado === 'disponible' && !asset.en_uso_ahora ? (
                 reserving?.id === asset.id ? (
                   <form className="mt-4" onSubmit={submitReserve}>
                     <div className="form-group">

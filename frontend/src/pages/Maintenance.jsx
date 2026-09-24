@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { usePagination, Pagination } from '../components/Pagination';
 
 export default function Maintenance() {
   const { user } = useAuth();
@@ -58,6 +59,8 @@ export default function Maintenance() {
   const estadoBadge = (estado) =>
     estado === 'completado' ? 'badge-success' : estado === 'en_proceso' ? 'badge-info' : 'badge-warning';
 
+  const logPager = usePagination(logs, 10);
+
   return (
     <div>
       <div className="card-header">
@@ -108,43 +111,46 @@ export default function Maintenance() {
           ) : logs.length === 0 ? (
             <p className="text-muted">No hay reportes de mantenimiento.</p>
           ) : (
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Recurso</th>
-                  <th>Descripción</th>
-                  <th>Fecha</th>
-                  <th>Estado</th>
-                  {user?.role === 'admin' && <th></th>}
-                </tr>
-              </thead>
-              <tbody>
-                {logs.map((log) => (
-                  <tr key={log.id}>
-                    <td>{log.asset?.nombre || `Activo #${log.asset_id}`}</td>
-                    <td style={{ maxWidth: 220 }}>{log.descripcion}</td>
-                    <td>
-                      {new Date(log.fecha_reporte).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}
-                    </td>
-                    <td>
-                      <span className={`badge ${estadoBadge(log.estado_reparacion)}`}>{log.estado_reparacion}</span>
-                    </td>
-                    {user?.role === 'admin' && (
-                      <td>
-                        {log.estado_reparacion !== 'completado' && (
-                          <button
-                            className="btn btn-secondary btn-sm"
-                            onClick={() => updateEstado(log, 'completado')}
-                          >
-                            Marcar completada
-                          </button>
-                        )}
-                      </td>
-                    )}
+            <>
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Recurso</th>
+                    <th>Descripción</th>
+                    <th>Fecha</th>
+                    <th>Estado</th>
+                    {user?.role === 'admin' && <th></th>}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {logPager.slice.map((log) => (
+                    <tr key={log.id}>
+                      <td>{log.asset?.nombre || `Activo #${log.asset_id}`}</td>
+                      <td style={{ maxWidth: 220 }}>{log.descripcion}</td>
+                      <td>
+                        {new Date(log.fecha_reporte).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}
+                      </td>
+                      <td>
+                        <span className={`badge ${estadoBadge(log.estado_reparacion)}`}>{log.estado_reparacion}</span>
+                      </td>
+                      {user?.role === 'admin' && (
+                        <td>
+                          {log.estado_reparacion !== 'completado' && (
+                            <button
+                              className="btn btn-secondary btn-sm"
+                              onClick={() => updateEstado(log, 'completado')}
+                            >
+                              Marcar completada
+                            </button>
+                          )}
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <Pagination page={logPager.page} totalPages={logPager.totalPages} onChange={logPager.setPage} />
+            </>
           )}
         </div>
       </div>
