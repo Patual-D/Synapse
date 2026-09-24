@@ -131,17 +131,61 @@ describe('Reservaciones: cancelado y filtro de fechas', () => {
     });
   });
 
-  describe('GET /api/reservations (filtro "próximas" vs historial)', () => {
-    it('excluye reservas ya pasadas por defecto', async () => {
+  describe('GET /api/reservations (filtro "próximas", historial y estado realizada)', () => {
+    it('excluye reservas ya pasadas por defecto (vista próxima)', async () => {
       const futura = await crearReserva(userToken, adminToken, ...Object.values(diasDesdeHoy(1, 2)));
       await crearReserva(userToken, adminToken, ...Object.values(diasDesdeHoy(-5, -4)));
+
+      const res = await request(app)
+        .get('/api/reservations')
+        .set('Authorization', `Bearer ${userToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.data).toHaveLength(1);
+      expect(res.body.data[0].id).toBe(futura.id);
+    });
+
+    it('con ?mine=1 devuelve el historial completo del usuario (incluye pasadas)', async () => {
+      const futura = await crearReserva(userToken, adminToken, ...Object.values(diasDesdeHoy(1, 2)));
+      const pasada = await crearReserva(userToken, adminToken, ...Object.values(diasDesdeHoy(-5, -4)));
 
       const res = await request(app)
         .get('/api/reservations?mine=1')
         .set('Authorization', `Bearer ${userToken}`);
       expect(res.status).toBe(200);
-      expect(res.body.data).toHaveLength(1);
-      expect(res.body.data[0].id).toBe(futura.id);
+      expect(res.body.data).toHaveLength(2);
+      expect(res.body.data.map((r) => r.id)).toEqual(expect.arrayContaining([futura.id, pasada.id]));
+    });
+
+    it('ordena de la más reciente a la más lejana en mine=1', async () => {
+      await crearReserva(userToken, adminToken, ...Object.values(diasDesdeHoy(3, 4)));
+      await crearReserva(userToken, adminToken, ...Object.values(diasDesdeHoy(1, 2)));
+
+      const res = await request(app)
+        .get('/api/reservations?mine=1')
+        .set('Authorization', `Bearer ${userToken}`);
+      const fechas = res.body.data.map((r) => new Date(r.fecha_inicio).getTime());
+      expect(fechas[0]).toBeGreaterThan(fechas[1]);
+    });
+
+    it('marca como "realizada" las reservas aprobadas cuya fecha ya terminó', async () => {
+      const pasada = await crearReserva(userToken, adminToken, ...Object.values(diasDesdeHoy(-5, -4)), 'aprobada');
+
+      const res = await request(app)
+        .get('/api/reservations?mine=1')
+        .set('Authorization', `Bearer ${userToken}`);
+      const target = res.body.data.find((r) => r.id === pasada.id);
+      expect(target.estado_aprobacion).toBe('realizada');
+    });
+
+    it('no convierte a "realizada" las rechazadas ni las canceladas', async () => {
+      await crearReserva(userToken, adminToken, ...Object.values(diasDesdeHoy(-5, -4)), 'rechazada');
+      await crearReserva(userToken, adminToken, ...Object.values(diasDesdeHoy(-3, -2)), 'cancelada');
+
+      const res = await request(app)
+        .get('/api/reservations?mine=1')
+        .set('Authorization', `Bearer ${userToken}`);
+      const estados = res.body.data.map((r) => r.estado_aprobacion).sort();
+      expect(estados).toEqual(['cancelada', 'rechazada']);
     });
 
     it('con ?todos=1 devuelve también el historial (el admin puede verlas)', async () => {

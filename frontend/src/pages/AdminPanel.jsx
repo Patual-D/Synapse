@@ -13,6 +13,7 @@ import {
   CartesianGrid
 } from 'recharts';
 import api from '../api/client';
+import { usePagination, Pagination } from '../components/Pagination';
 
 const ESTADO_COLORS = {
   disponible: '#059669',
@@ -29,7 +30,8 @@ const resBadge = (estado) =>
   estado === 'aprobada' ? 'badge-success'
     : estado === 'pendiente' ? 'badge-warning'
       : estado === 'rechazada' ? 'badge-danger'
-        : 'badge-neutral';
+        : estado === 'realizada' ? 'badge-neutral'
+          : 'badge-neutral';
 
 export default function AdminPanel() {
   const [assets, setAssets] = useState([]);
@@ -63,9 +65,9 @@ export default function AdminPanel() {
   }, []);
 
   const byEstado = [
-    { name: 'Disponibles', value: assets.filter((a) => a.estado === 'disponible').length },
-    { name: 'En uso', value: assets.filter((a) => a.estado === 'en_uso' || a.en_uso_ahora).length },
-    { name: 'Mantenimiento', value: assets.filter((a) => a.estado === 'mantenimiento').length }
+    { name: 'Disponibles', estado: 'disponible', value: assets.filter((a) => a.estado === 'disponible').length },
+    { name: 'En uso', estado: 'en_uso', value: assets.filter((a) => a.estado === 'en_uso' || a.en_uso_ahora).length },
+    { name: 'Mantenimiento', estado: 'mantenimiento', value: assets.filter((a) => a.estado === 'mantenimiento').length }
   ].filter((d) => d.value > 0);
 
   const usageByAsset = assets.map((a) => ({
@@ -74,6 +76,11 @@ export default function AdminPanel() {
   }));
 
   const enReparacion = logs.filter((l) => l.estado_reparacion !== 'completado').length;
+
+  const activosOrdered = [...assets].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  const reservasOrdered = [...reservations].sort((a, b) => new Date(b.fecha_inicio) - new Date(a.fecha_inicio));
+  const assetPager = usePagination(activosOrdered, 10);
+  const resPager = usePagination(reservasOrdered, 10);
 
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
@@ -178,7 +185,7 @@ export default function AdminPanel() {
                     label
                   >
                     {byEstado.map((entry) => (
-                      <Cell key={entry.name} fill={ESTADO_COLORS[entry.name.toLowerCase()]} />
+                      <Cell key={entry.name} fill={ESTADO_COLORS[entry.estado]} />
                     ))}
                   </Pie>
                   <Tooltip />
@@ -288,7 +295,7 @@ export default function AdminPanel() {
                   </tr>
                 </thead>
                 <tbody>
-                  {assets.map((asset) => (
+                  {assetPager.slice.map((asset) => (
                     <tr key={asset.id}>
                       <td>{asset.nombre}</td>
                       <td>{asset.tipo}</td>
@@ -310,6 +317,7 @@ export default function AdminPanel() {
               </table>
             </div>
           )}
+          <Pagination page={assetPager.page} totalPages={assetPager.totalPages} onChange={assetPager.setPage} />
         </div>
       </div>
 
@@ -333,7 +341,7 @@ export default function AdminPanel() {
                 </tr>
               </thead>
               <tbody>
-                {reservations.map((r) => (
+                {resPager.slice.map((r) => (
                   <tr key={r.id}>
                     <td>{r.asset?.nombre || `Activo #${r.asset_id}`}</td>
                     <td>{r.user?.nombre || `Usuario #${r.user_id}`}</td>
@@ -365,6 +373,7 @@ export default function AdminPanel() {
             </table>
           </div>
         )}
+        <Pagination page={resPager.page} totalPages={resPager.totalPages} onChange={resPager.setPage} />
       </div>
     </div>
   );

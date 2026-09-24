@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/client';
+import { usePagination, Pagination } from '../components/Pagination';
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -36,6 +37,9 @@ export default function Dashboard() {
   const disponibles = assets.filter((a) => a.estado === 'disponible').length;
   const enUso = assets.filter((a) => a.estado === 'en_uso' || a.en_uso_ahora).length;
   const mantenimiento = assets.filter((a) => a.estado === 'mantenimiento').length;
+
+  const misReservas = [...reservations].sort((a, b) => new Date(b.fecha_inicio) - new Date(a.fecha_inicio));
+  const resPager = usePagination(misReservas, 10);
 
   const puedeCancelar = (r) =>
     (r.estado_aprobacion === 'pendiente' || r.estado_aprobacion === 'aprobada') &&
@@ -110,7 +114,8 @@ export default function Dashboard() {
           ) : reservations.length === 0 ? (
             <p className="text-muted">Aún no has realizado reservas.</p>
           ) : (
-            <table className="table">
+            <>
+              <table className="table">
               <thead>
                 <tr>
                   <th>Recurso</th>
@@ -120,7 +125,7 @@ export default function Dashboard() {
                 </tr>
               </thead>
               <tbody>
-                {reservations.slice(0, 5).map((r) => (
+                {resPager.slice.map((r) => (
                   <tr key={r.id}>
                     <td>{r.asset?.nombre || `Activo #${r.asset_id}`}</td>
                     <td>{new Date(r.fecha_inicio).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}</td>
@@ -133,7 +138,9 @@ export default function Dashboard() {
                               ? 'badge-warning'
                               : r.estado_aprobacion === 'rechazada'
                                 ? 'badge-danger'
-                                : 'badge-neutral'
+                                : r.estado_aprobacion === 'realizada'
+                                  ? 'badge-neutral'
+                                  : 'badge-neutral'
                         }`}
                       >
                         {r.estado_aprobacion}
@@ -150,6 +157,8 @@ export default function Dashboard() {
                 ))}
               </tbody>
             </table>
+            <Pagination page={resPager.page} totalPages={resPager.totalPages} onChange={resPager.setPage} />
+            </>
           )}
         </div>
       </div>

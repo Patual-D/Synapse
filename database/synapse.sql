@@ -61,7 +61,7 @@ CREATE TABLE reservations (
   user_id           INT UNSIGNED  NOT NULL,
   fecha_inicio      DATETIME      NOT NULL,
   fecha_fin         DATETIME      NOT NULL,
-  estado_aprobacion ENUM('pendiente','aprobada','rechazada','cancelada') NOT NULL DEFAULT 'pendiente',
+  estado_aprobacion ENUM('pendiente','aprobada','rechazada','cancelada','realizada') NOT NULL DEFAULT 'pendiente',
   created_at        TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_res_asset (asset_id),

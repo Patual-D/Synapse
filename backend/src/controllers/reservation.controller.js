@@ -55,9 +55,24 @@ exports.create = async (req, res, next) => {
   }
 };
 
+async function marcarRealizadas() {
+  await Reservation.update(
+    { estado_aprobacion: 'realizada' },
+    {
+      where: {
+        estado_aprobacion: 'aprobada',
+        fecha_fin: { [Op.lt]: new Date() }
+      }
+    }
+  );
+}
+
 exports.list = async (req, res, next) => {
   try {
+    await marcarRealizadas();
+
     const where = {};
+    const verHistorial = req.query.todos === '1' || !!req.query.mine;
 
     if (req.query.todos === '1') {
       // Historial completo (uso interno del admin): incluye reservas pasadas.
@@ -71,7 +86,7 @@ exports.list = async (req, res, next) => {
 
     if (req.query.asset_id) where.asset_id = req.query.asset_id;
 
-    if (req.query.todos !== '1') {
+    if (!verHistorial) {
       // Solo "próximas" reservas: descarta las que ya terminaron.
       where.fecha_fin = { [Op.gte]: new Date() };
     }
@@ -82,7 +97,7 @@ exports.list = async (req, res, next) => {
         { model: Asset, as: 'asset', attributes: ['id', 'nombre', 'tipo'] },
         { model: User, as: 'user', attributes: ['id', 'nombre'] }
       ],
-      order: [['fecha_inicio', 'ASC']]
+      order: verHistorial ? [['fecha_inicio', 'DESC']] : [['fecha_inicio', 'ASC']]
     });
 
     return res.json({ data: reservations });
