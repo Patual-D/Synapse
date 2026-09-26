@@ -25,3 +25,7 @@ Thumbs.db
 
 # Docker
 *.tar.gz
+
+# Reportes generados por SonarQube (se regeneran con quality\sonar\run-sonar.ps1)
+quality/sonar/reports/
+.scannerwork/

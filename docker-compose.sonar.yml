@@ -1,0 +1,48 @@
+services:
+  sonarqube:
+    image: sonarqube:community
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+    volumes:
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_logs:/opt/sonarqube/logs
+      - sonarqube_extensions:/opt/sonarqube/extensions
+    healthcheck:
+      # La imagen es Ubuntu y trae curl, no wget (a diferencia de las
+      # imagenes alpine de backend/frontend, que si lo traen).
+      test:
+        [
+          "CMD-SHELL",
+          'curl -sf http://127.0.0.1:9000/api/system/status | grep -q ''"status":"UP"''',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+  # SonarScanner CLI. No arranca con "up -d": vive bajo el profile
+  # "scan" y solo lo lanza run-sonar.ps1 (docker compose run).
+  #
+  # La imagen trae su propio JRE, asi que el Java del host es
+  # irrelevante. Desde la version 10 corre como uid 1000, no root.
+  scanner:
+    image: sonarsource/sonar-scanner-cli:${SONAR_SCANNER_TAG:-12.2}
+    profiles:
+      - scan
+    environment:
+      SONAR_HOST_URL: http://sonarqube:9000
+    volumes:
+      # El codigo se lee del host y .scannerwork se escribe ahi.
+      - ./:/usr/src
+    command:
+      - -Dproject.settings=sonar-project.properties
+      - -Dsonar.token=${SONAR_TOKEN:-}
+    depends_on:
+      sonarqube:
+        condition: service_healthy
+
+volumes:
+  sonarqube_data:
+  sonarqube_logs:
+  sonarqube_extensions:
